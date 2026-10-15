@@ -472,9 +472,9 @@ function renderEditor() {
     body += `<div class="segmented"><button type="button" data-mode="times" class="${draft.mode === 'times' ? 'on' : ''}">Uhrzeiten</button><button type="button" data-mode="hours" class="${draft.mode === 'hours' ? 'on' : ''}">Stunden</button></div>`;
     if (draft.mode === 'times') {
       body += draft.segs.map((s, i) => `<div class="seg">
-          <input type="time" data-seg="${i}" data-f="s" value="${s.s || ''}" aria-label="Beginn">
+          <input type="text" inputmode="numeric" autocomplete="off" maxlength="5" placeholder="08:00" data-seg="${i}" data-f="s" value="${s.s || ''}" aria-label="Beginn">
           <span class="muted">bis</span>
-          <input type="time" data-seg="${i}" data-f="e" value="${s.e || ''}" aria-label="Ende">
+          <input type="text" inputmode="numeric" autocomplete="off" maxlength="5" placeholder="17:00" data-seg="${i}" data-f="e" value="${s.e || ''}" aria-label="Ende">
           <button type="button" class="x" data-delseg="${i}" aria-label="Zeitraum entfernen">×</button>
         </div>`).join('') +
         `<button type="button" class="btn" data-addseg style="margin-bottom:14px">+ weiterer Zeitraum</button>
@@ -502,6 +502,15 @@ function renderEditor() {
     </form>`;
 }
 
+// Eingetippte Uhrzeit in HH:MM umwandeln; ungültig → ''
+function normTime(v) {
+  const m = String(v).trim().match(/^(\d{1,2})(?::(\d{1,2}))?$/);
+  if (!m) return '';
+  const h = +m[1], min = m[2] == null ? 0 : +m[2];
+  if (h > 23 || min > 59 || (m[2] != null && m[2].length < 2)) return '';
+  return `${pad(h)}:${pad(min)}`;
+}
+
 function parseHours(v) {
   v = String(v).trim();
   if (!v) return null;
@@ -516,7 +525,12 @@ function updateResult() {
 
 $('#editor').addEventListener('input', e => {
   const t = e.target;
-  if (t.dataset.seg != null) draft.segs[+t.dataset.seg][t.dataset.f] = t.value;
+  if (t.dataset.seg != null) {
+    // Doppelpunkt automatisch setzen: 830 → 8:30, 1745 → 17:45
+    const digits = t.value.replace(/\D/g, '').slice(0, 4);
+    t.value = digits.length >= 3 ? `${digits.slice(0, -2)}:${digits.slice(-2)}` : digits;
+    draft.segs[+t.dataset.seg][t.dataset.f] = normTime(t.value);
+  }
   else if (t.id === 'edPause') {
     draft.pause = Math.max(0, parseInt(t.value, 10) || 0);
     document.querySelectorAll('[data-edpause]').forEach(c => c.classList.toggle('on', +c.dataset.edpause === draft.pause));
@@ -528,6 +542,7 @@ $('#editor').addEventListener('input', e => {
 
 $('#editor').addEventListener('change', e => {
   const t = e.target;
+  if (t.dataset.seg != null) { const n = normTime(t.value); if (n) t.value = n; }
   if (t.id === 'edDate' && t.value && t.value !== draft.key) openEditor(t.value); else if (t.id === 'edAlt') {
     draft.altHours = t.checked;
     if (!t.checked) draft.hours = null;
