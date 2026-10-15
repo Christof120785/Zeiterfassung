@@ -1,13 +1,14 @@
 'use strict';
 
 // ---------- Abgleich über OneDrive (Microsoft Graph) ----------
-// Die Client-ID stammt aus der App-Registrierung bei Microsoft (Entra ID).
-// Leer = Abgleich noch nicht eingerichtet.
-const ONEDRIVE_CLIENT_ID = '';
+// App-Registrierung „Zeiterfassung“ im Entra-ID-Mandanten von ScheppConsult (Firmen-OneDrive).
+// Leere Client-ID = Abgleich noch nicht eingerichtet.
+const ONEDRIVE_CLIENT_ID = '2dd85a3a-473f-4170-9a05-15276df453fe';
+const ONEDRIVE_TENANT = '71133e6c-59aa-4423-be28-f57eb7de5fb5';
 
 const Sync = (() => {
   const SKEY = 'zeiterfassung.sync';
-  const AUTH = 'https://login.microsoftonline.com/common/oauth2/v2.0';
+  const AUTH = `https://login.microsoftonline.com/${ONEDRIVE_TENANT}/oauth2/v2.0`;
   const SCOPE = 'Files.ReadWrite User.Read offline_access';
   const FILE = 'https://graph.microsoft.com/v1.0/me/drive/root:/Apps/Zeiterfassung/zeiterfassung.json';
   const redirectUri = () => new URL('./', location.href).href;
