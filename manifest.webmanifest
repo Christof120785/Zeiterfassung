@@ -1,0 +1,20 @@
+{
+  "name": "Zeiterfassung",
+  "short_name": "Zeit",
+  "description": "Persönliche Arbeitszeiterfassung",
+  "lang": "de",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f4f5f2",
+  "theme_color": "#1f6f5c",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Start stempeln", "short_name": "Start", "url": "./?action=start", "icons": [{ "src": "icons/start-96.png", "sizes": "96x96", "type": "image/png" }] },
+    { "name": "Ende stempeln", "short_name": "Ende", "url": "./?action=stop", "icons": [{ "src": "icons/stop-96.png", "sizes": "96x96", "type": "image/png" }] }
+  ]
+}
