@@ -326,7 +326,7 @@ function renderToday() {
       ${day ? `<p class="muted" style="margin:0 0 10px">${describe(k, day)}</p>` : ''}
       <div class="btn-row">
         <button class="btn" data-edit="${k}">Heute bearbeiten</button>
-        <button class="btn" data-act="other">Anderen Tag eintragen</button>
+        <button class="btn" data-act="other">Anderer Tag / Urlaub</button>
       </div>
     </section>
     <section class="card">
@@ -484,7 +484,9 @@ function renderEditor() {
       body += `<label class="field"><span>Arbeitsstunden (netto)</span><input type="text" inputmode="decimal" id="edHours" placeholder="z. B. 8,5 oder 8:30" value="${draft.hours != null ? String(draft.hours).replace('.', ',') : ''}"></label>`;
     }
   } else {
-    body += `<label class="field" style="display:flex;gap:10px;align-items:center"><input type="checkbox" id="edAlt" ${draft.altHours ? 'checked' : ''} style="width:auto;min-height:0">
+    body += `<label class="field"><span>Bis einschließlich (für mehrere Tage, optional)</span><input type="date" id="edUntil" min="${k}" value="${draft.until || ''}"></label>
+      <p class="hint" id="edRangeInfo" style="margin:-4px 0 12px">${rangeInfo()}</p>
+      <label class="field" style="display:flex;gap:10px;align-items:center"><input type="checkbox" id="edAlt" ${draft.altHours ? 'checked' : ''} style="width:auto;min-height:0">
         <span style="margin:0">Abweichende Stunden (z. B. halber Tag)</span></label>
       ${draft.altHours ? `<label class="field"><span>Stunden</span><input type="text" inputmode="decimal" id="edHours" placeholder="z. B. 4" value="${draft.hours != null ? String(draft.hours).replace('.', ',') : ''}"></label>` : `<p class="hint" style="margin:-4px 0 12px">Zählt mit dem Tagessoll von ${fmt(targetMin(k))}.</p>`}`;
   }
@@ -509,6 +511,19 @@ function normTime(v) {
   const h = +m[1], min = m[2] == null ? 0 : +m[2];
   if (h > 23 || min > 59 || (m[2] != null && m[2].length < 2)) return '';
   return `${pad(h)}:${pad(min)}`;
+}
+
+// Arbeitstage (mit Soll) im gewählten Zeitraum; Wochenenden und Feiertage zählen nicht
+function rangeDays(from, to) {
+  const out = [];
+  for (let d = parse(from); iso(d) <= to && out.length < 400; d = addDays(d, 1)) if (targetMin(iso(d)) > 0) out.push(iso(d));
+  return out;
+}
+
+function rangeInfo() {
+  if (!draft.until || draft.until <= draft.key) return '';
+  const n = rangeDays(draft.key, draft.until).length;
+  return `${shortDate(parse(draft.key))} bis ${shortDate(parse(draft.until))}: ${n} Arbeitstag${n === 1 ? '' : 'e'} (Wochenenden und Feiertage werden übersprungen)`;
 }
 
 function parseHours(v) {
@@ -537,13 +552,19 @@ $('#editor').addEventListener('input', e => {
   }
   else if (t.id === 'edHours') { const h = parseHours(t.value); draft.hours = h == null || isNaN(h) ? null : Math.round(h * 100) / 100; }
   else if (t.id === 'edNote') draft.note = t.value;
+  else if (t.id === 'edUntil') { draft.until = t.value; $('#edRangeInfo').textContent = rangeInfo(); }
   updateResult();
 });
 
 $('#editor').addEventListener('change', e => {
   const t = e.target;
   if (t.dataset.seg != null) { const n = normTime(t.value); if (n) t.value = n; }
-  if (t.id === 'edDate' && t.value && t.value !== draft.key) openEditor(t.value); else if (t.id === 'edAlt') {
+  if (t.id === 'edDate' && t.value && t.value !== draft.key) {
+    // Bei leerem Zieltag gewählte Art (z. B. Urlaub) und Zeitraum behalten
+    const keep = !state.days[t.value] && draft.type !== 'work' ? { type: draft.type, until: draft.until > t.value ? draft.until : '', altHours: draft.altHours, hours: draft.hours } : null;
+    openEditor(t.value);
+    if (keep) { Object.assign(draft, keep); renderEditor(); }
+  } else if (t.id === 'edAlt') {
     draft.altHours = t.checked;
     if (!t.checked) draft.hours = null;
     renderEditor();
@@ -581,6 +602,22 @@ $('#editor').addEventListener('submit', e => {
       if (d.pause > gross && !openSegs.length) { toast('Pause ist länger als die Arbeitszeit'); return; }
     }
   } else if (draft.altHours && (d.hours == null || isNaN(d.hours) || d.hours < 0 || d.hours > 24)) { toast('Bitte gültige Stunden eingeben'); return; }
+
+  // Zeitraum (Urlaub, Krank, Feiertag über mehrere Tage)
+  if (d.type !== 'work' && draft.until && draft.until !== draft.key) {
+    if (draft.until < draft.key) { toast('„Bis“ liegt vor dem Startdatum'); return; }
+    const keys = rangeDays(draft.key, draft.until);
+    if (!keys.length) { toast('Im Zeitraum liegen keine Arbeitstage'); return; }
+    const taken = keys.filter(k => state.days[k] && !(state.days[k].type === d.type && state.days[k].hours === d.hours));
+    if (taken.length && !confirm(`${taken.length} Tag${taken.length === 1 ? ' hat' : 'e haben'} schon Einträge (z. B. ${shortDate(parse(taken[0]))}). Überschreiben?`)) return;
+    const now = Date.now();
+    for (const k of keys) { state.days[k] = { ...d, updatedAt: now }; if (state.deleted) delete state.deleted[k]; }
+    save();
+    $('#editor').close();
+    toast(`${TYPES[d.type]} für ${keys.length} Tag${keys.length === 1 ? '' : 'e'} eingetragen`);
+    render();
+    return;
+  }
   setDay(draft.key, d);
   $('#editor').close();
   toast('Gespeichert');
