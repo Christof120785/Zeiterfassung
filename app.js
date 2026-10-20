@@ -1,5 +1,17 @@
 'use strict';
 
+// ---------- Version ----------
+// Bei jeder Änderung: APP_VERSION, version.json und CHANGES aktualisieren.
+const APP_VERSION = '1.5.0';
+const CHANGES = [
+  ['1.5.0', '20.10.2026', 'Versionsnummer und Hinweis bei neuer Version'],
+  ['1.4.0', '20.10.2026', 'Urlaub und Krankheit als Zeitraum (von bis) eintragen'],
+  ['1.3.0', '15.10.2026', 'Uhrzeiten direkt eintippen (0830 → 08:30)'],
+  ['1.2.0', '15.10.2026', 'Abgleich über OneDrive'],
+  ['1.1.0', '15.10.2026', 'Feiertage Niedersachsen, Heiligabend und Silvester halber Tag'],
+  ['1.0.0', '15.10.2026', 'Erste Version: Stempeln, Uhrzeiten, Stunden, Pause, Übersichten'],
+];
+
 // ---------- Daten ----------
 const KEY = 'zeiterfassung.v1';
 const TYPES = { work: 'Arbeit', urlaub: 'Urlaub', krank: 'Krank', feiertag: 'Feiertag' };
@@ -424,6 +436,10 @@ function renderSettings() {
       <div style="height:8px"></div>
       <button class="btn danger block" data-act="wipe">Alle Daten löschen</button>
     </section>
+    <section class="card"><h2>Version</h2>
+      <div class="row" style="margin-bottom:8px"><b>Version ${APP_VERSION}</b><button class="btn" data-act="checkupdate">Nach Update suchen</button></div>
+      ${CHANGES.map(([v, d, t]) => `<p class="hint" style="margin:6px 0"><b>${v}</b> · ${d} · ${t}</p>`).join('')}
+    </section>
     <p class="hint" style="text-align:center">${Object.keys(state.days).length} Tage gespeichert</p>`;
 }
 
@@ -642,6 +658,8 @@ document.addEventListener('click', e => {
     case 'stop': stampStop(); break;
     case 'other': openEditor(iso(addDays(new Date(), -1))); break;
     case 'seed': importSeed(); break;
+    case 'checkupdate': checkUpdate(true); break;
+    case 'doupdate': doUpdate(); break;
     case 'backup': backup(); break;
     case 'restore': $('#restoreFile').click(); break;
     case 'wipe':
@@ -725,19 +743,54 @@ function toast(msg) {
   toastTimer = setTimeout(() => el.classList.remove('show'), 2600);
 }
 
+// ---------- Updates ----------
+// version.json liegt neben der App; ist dort eine neuere Version, erscheint ein Hinweis
+let newVersion = null;
+const newer = (a, b) => { const x = a.split('.').map(Number), y = b.split('.').map(Number); for (let i = 0; i < 3; i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); return false; };
+
+async function checkUpdate(manual = false) {
+  try {
+    const r = await fetch(`version.json?t=${Date.now()}`, { cache: 'no-store' });
+    const { version } = await r.json();
+    if (newer(version, APP_VERSION)) { newVersion = version; showUpdateBanner(); }
+    else if (manual) toast(`Du hast die neueste Version (${APP_VERSION})`);
+  } catch (e) { if (manual) toast('Keine Verbindung, Update-Prüfung nicht möglich'); }
+}
+
+function showUpdateBanner() {
+  let el = $('#updateBanner');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'updateBanner';
+    document.body.insertBefore(el, $('#view'));
+  }
+  el.innerHTML = `<span>Neue Version ${newVersion} verfügbar (du hast ${APP_VERSION})</span><button class="btn primary" data-act="doupdate">Aktualisieren</button>`;
+}
+
+async function doUpdate() {
+  try {
+    const regs = await navigator.serviceWorker?.getRegistrations() || [];
+    await Promise.all(regs.map(r => r.unregister()));
+    const keys = await caches.keys();
+    await Promise.all(keys.map(k => caches.delete(k)));
+  } catch (e) { /* trotzdem neu laden */ }
+  location.replace(`${location.pathname}?v=${newVersion || Date.now()}`);
+}
+
 // ---------- Start ----------
 // Schnellaktionen vom Homescreen-Icon (lange drücken): ?action=start | ?action=stop
 const params = new URLSearchParams(location.search);
 const action = params.get('action');
 migrate();
-if (action) history.replaceState(null, '', location.pathname);
+if (action || params.has('v')) history.replaceState(null, '', location.pathname);
 render();
 if (action === 'start') stampStart();
 if (action === 'stop') stampStop();
 
 // Laufende Zeit jede halbe Minute aktualisieren (nicht während der Bearbeitung)
 setInterval(() => { if (view === 'today' && !$('#editor').open) render(); }, 30000);
-document.addEventListener('visibilitychange', () => { if (!document.hidden && !$('#editor').open) render(); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { checkUpdate(); if (!$('#editor').open) render(); } });
+checkUpdate();
 window.addEventListener('storage', e => { if (e.key === KEY) { state = load(); render(); } });
 
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {

@@ -202,3 +202,10 @@ dialog::backdrop { background: rgba(0,0,0,.45); }
   opacity: 0; pointer-events: none; transition: .2s; max-width: calc(100vw - 32px); z-index: 20;
 }
 #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+#updateBanner {
+  max-width: 608px; margin: 0 auto 12px; padding: 10px 12px 10px 16px;
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  background: var(--accent-soft); border: 1px solid var(--accent); border-radius: var(--radius);
+}
+@media (max-width: 640px) { #updateBanner { margin: 0 16px 12px; } }
