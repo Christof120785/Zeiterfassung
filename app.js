@@ -2,8 +2,9 @@
 
 // ---------- Version ----------
 // Bei jeder Änderung: APP_VERSION, version.json und CHANGES aktualisieren.
-const APP_VERSION = '1.6.0';
+const APP_VERSION = '1.6.1';
 const CHANGES = [
+  ['1.6.1', '26.10.2026', 'Schnellwahl um 8,5 h ergänzt'],
   ['1.6.0', '26.10.2026', 'Schnellwahl auf der Startseite: heute 6, 8, 9 oder 10 Stunden ohne Uhrzeit'],
   ['1.5.0', '20.10.2026', 'Versionsnummer und Hinweis bei neuer Version'],
   ['1.4.0', '20.10.2026', 'Urlaub und Krankheit als Zeitraum (von bis) eintragen'],
@@ -28,7 +29,7 @@ function defaultSettings() {
     startDate: null,              // Beginn Überstundenkonto; null = erster Eintrag
     carryover: 0,                 // Übertrag Überstunden in Stunden
     format: 'dec',                // 'dec' = 8,50 h, 'hm' = 8:30 h
-    quickHours: [6, 8, 9, 10],    // Schnellwahl auf der Startseite
+    quickHours: [6, 8, 8.5, 9, 10], // Schnellwahl auf der Startseite
     holidays: true,               // gesetzliche Feiertage Niedersachsen: Soll entfällt
     halfDays: true,               // Heiligabend und Silvester: halbes Soll (von der Firma geschenkt)
   };
@@ -43,6 +44,8 @@ function load() {
 }
 
 let state = load();
+// 1.6.1: bisherige Standard-Schnellwahl um 8,5 h ergänzen
+if (String(state.settings.quickHours) === '6,8,9,10') state.settings.quickHours = [6, 8, 8.5, 9, 10];
 
 // Früher manuell als „Feiertag“ eingetragene gesetzliche Feiertage werden jetzt automatisch erkannt
 function migrate() {
