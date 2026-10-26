@@ -1,5 +1,5 @@
 // Offline-Cache für die App-Dateien. Bei jeder Änderung VERSION erhöhen.
-const VERSION = 'zeit-1.5.0';
+const VERSION = 'zeit-1.6.0';
 const FILES = ['./', 'index.html', 'styles.css', 'app.js', 'sync.js', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png'];
 
 self.addEventListener('install', e => {

@@ -2,8 +2,9 @@
 
 // ---------- Version ----------
 // Bei jeder Änderung: APP_VERSION, version.json und CHANGES aktualisieren.
-const APP_VERSION = '1.5.0';
+const APP_VERSION = '1.6.0';
 const CHANGES = [
+  ['1.6.0', '26.10.2026', 'Schnellwahl auf der Startseite: heute 6, 8, 9 oder 10 Stunden ohne Uhrzeit'],
   ['1.5.0', '20.10.2026', 'Versionsnummer und Hinweis bei neuer Version'],
   ['1.4.0', '20.10.2026', 'Urlaub und Krankheit als Zeitraum (von bis) eintragen'],
   ['1.3.0', '15.10.2026', 'Uhrzeiten direkt eintippen (0830 → 08:30)'],
@@ -27,6 +28,7 @@ function defaultSettings() {
     startDate: null,              // Beginn Überstundenkonto; null = erster Eintrag
     carryover: 0,                 // Übertrag Überstunden in Stunden
     format: 'dec',                // 'dec' = 8,50 h, 'hm' = 8:30 h
+    quickHours: [6, 8, 9, 10],    // Schnellwahl auf der Startseite
     holidays: true,               // gesetzliche Feiertage Niedersachsen: Soll entfällt
     halfDays: true,               // Heiligabend und Silvester: halbes Soll (von der Firma geschenkt)
   };
@@ -265,6 +267,21 @@ function stampStop() {
   render();
 }
 
+// Schnellwahl: heute X Stunden ohne Uhrzeiten eintragen
+function setTodayHours(h) {
+  const k = todayKey();
+  const old = state.days[k];
+  if (old && old.type === 'work' && old.hours === h) return;
+  if (old && (old.type !== 'work' || (old.segs || []).some(x => x.s))) {
+    const what = old.type !== 'work' ? TYPES[old.type] : 'Uhrzeiten';
+    if (!confirm(`Heute sind ${what} eingetragen. Durch ${fmtNum(h)} Stunden ersetzen?`)) return;
+  }
+  setDay(k, { type: 'work', hours: h, segs: [], pause: 0, note: old?.note || '' });
+  toast(`Heute ${fmtNum(h)} Stunden eingetragen`);
+  render();
+}
+const fmtNum = n => String(n).replace('.', ',');
+
 function setTodayPause(min) {
   const k = todayKey();
   const d = state.days[k] ? structuredClone(state.days[k]) : { type: 'work', segs: [], pause: 0, hours: null, note: '' };
@@ -312,7 +329,7 @@ function renderToday() {
       <div class="big num">${fmt(mins)}</div>
       <button class="stamp" data-act="start">Trotzdem Start stempeln</button>`;
   } else {
-    clock = `<div class="state">${day ? 'Heute bisher' : 'Noch nicht gestartet'}</div>
+    clock = `<div class="state">${!day ? 'Noch nicht gestartet' : day.hours != null ? 'Heute eingetragen' : 'Heute bisher'}</div>
       <div class="big num">${fmt(mins)}</div>
       <button class="stamp" data-act="start">Start stempeln</button>`;
   }
@@ -330,6 +347,10 @@ function renderToday() {
   $('#view').innerHTML = `
     ${importCard}
     <section class="card clock">${clock}</section>
+    <section class="card">
+      <h2>Heute ohne Uhrzeit</h2>
+      <div class="chips">${(state.settings.quickHours || []).map(h => `<button class="chip ${day && day.type === 'work' && day.hours === h ? 'on' : ''}" data-quickhours="${h}">${fmtNum(h)} h</button>`).join('')}</div>
+    </section>
     ${showPause ? `<section class="card">
       <div class="row" style="margin-bottom:10px"><h2 style="margin:0">Pause heute</h2><span class="muted num">${pause} min</span></div>
       <div class="chips">${PAUSES.map(p => `<button class="chip ${p === pause ? 'on' : ''}" data-pause="${p}">${p ? p + ' min' : 'keine'}</button>`).join('')}</div>
@@ -422,6 +443,7 @@ function renderSettings() {
       <label class="field" style="display:flex;gap:10px;align-items:center"><input type="checkbox" data-set="holidays" ${s.holidays ? 'checked' : ''} style="width:auto;min-height:0"><span style="margin:0">Gesetzliche Feiertage Niedersachsen (kein Soll)</span></label>
       <label class="field" style="display:flex;gap:10px;align-items:center"><input type="checkbox" data-set="halfDays" ${s.halfDays ? 'checked' : ''} style="width:auto;min-height:0"><span style="margin:0">Heiligabend und Silvester halber Tag frei</span></label>
       <label class="field"><span>Übertrag Überstunden (Stunden, z. B. 12,5 oder −3)</span><input type="text" inputmode="decimal" data-set="carryover" value="${String(s.carryover).replace('.', ',')}"></label>
+      <label class="field"><span>Schnellwahl Stunden auf der Startseite (mit Leerzeichen getrennt)</span><input type="text" inputmode="decimal" data-set="quickHours" placeholder="6 8 9 10" value="${(s.quickHours || []).map(fmtNum).join(' ')}"></label>
       <label class="field"><span>Anzeige der Stunden</span>
         <select data-set="format"><option value="dec" ${s.format === 'dec' ? 'selected' : ''}>Dezimal (8,50 h)</option><option value="hm" ${s.format === 'hm' ? 'selected' : ''}>Stunden:Minuten (8:30 h)</option></select></label>
     </section>
@@ -647,6 +669,7 @@ document.addEventListener('click', e => {
   if (b.dataset.view) { view = b.dataset.view; render(); window.scrollTo(0, 0); return; }
   if (b.dataset.edit) { openEditor(b.dataset.edit); return; }
   if (b.dataset.pause != null) { setTodayPause(+b.dataset.pause); return; }
+  if (b.dataset.quickhours != null) { setTodayHours(+b.dataset.quickhours); return; }
   if (b.dataset.week != null) { weekAnchor = +b.dataset.week ? addDays(weekAnchor, 7 * b.dataset.week) : mondayOf(new Date()); render(); return; }
   if (b.dataset.month != null) {
     monthAnchor = +b.dataset.month ? new Date(monthAnchor.getFullYear(), monthAnchor.getMonth() + +b.dataset.month, 1) : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
@@ -685,6 +708,7 @@ document.addEventListener('change', e => {
     else if (k === 'startDate') state.settings.startDate = t.value || null;
     else if (k === 'carryover') state.settings.carryover = parseFloat(t.value.replace('−', '-').replace(',', '.')) || 0;
     else if (k === 'format') state.settings.format = t.value;
+    else if (k === 'quickHours') state.settings.quickHours = t.value.split(/[\s;]+/).map(v => parseFloat(v.replace(',', '.'))).filter(v => v > 0 && v <= 24).slice(0, 8);
     else if (k === 'holidays' || k === 'halfDays') state.settings[k] = t.checked;
   } else if (t.id === 'restoreFile' && t.files[0]) {
     restore(t.files[0]); return;
