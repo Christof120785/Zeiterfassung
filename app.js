@@ -2,8 +2,9 @@
 
 // ---------- Version ----------
 // Bei jeder Änderung: APP_VERSION, version.json und CHANGES aktualisieren.
-const APP_VERSION = '1.6.1';
+const APP_VERSION = '1.7.0';
 const CHANGES = [
+  ['1.7.0', '11.11.2026', 'OneDrive-Status oben auf Heute und Woche sichtbar'],
   ['1.6.1', '26.10.2026', 'Schnellwahl um 8,5 h ergänzt'],
   ['1.6.0', '26.10.2026', 'Schnellwahl auf der Startseite: heute 6, 8, 9 oder 10 Stunden ohne Uhrzeit'],
   ['1.5.0', '20.10.2026', 'Versionsnummer und Hinweis bei neuer Version'],
@@ -348,6 +349,7 @@ function renderToday() {
     ? `<section class="card"><h2>Excel-Daten</h2><p style="margin:0 0 10px">Deine Zeiten aus der Excel 2026 sind bereit zur Übernahme.</p>
         <button class="btn primary block" data-act="seed">Excel-Daten 2026 übernehmen</button></section>` : '';
   $('#view').innerHTML = `
+    ${typeof Sync !== 'undefined' ? Sync.badgeHtml() : ''}
     ${importCard}
     <section class="card clock">${clock}</section>
     <section class="card">
@@ -391,6 +393,7 @@ function renderWeek() {
     </button>`;
   }
   $('#view').innerHTML = `
+    ${typeof Sync !== 'undefined' ? Sync.badgeHtml() : ''}
     <div class="nav"><button data-week="-1" aria-label="Vorherige Woche">‹</button>
       <button class="label" data-week="0" style="width:auto;padding:0 14px">Diese Woche</button>
       <button data-week="1" aria-label="Nächste Woche">›</button></div>

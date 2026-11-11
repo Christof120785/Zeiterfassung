@@ -185,7 +185,22 @@ const Sync = (() => {
     status = 'off'; refreshUi();
   }
 
-  function refreshUi() { if (view === 'settings' && !document.querySelector('#editor').open) render(); }
+  function refreshUi() { if (view !== 'month' && !document.querySelector('#editor').open) render(); }
+
+  // Kurzer Abgleich-Status oben auf Heute und Woche, damit ein fehlender Abgleich sofort auffällt
+  function badgeHtml() {
+    if (!configured()) return '';
+    const time = s.lastSync ? new Date(s.lastSync).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) : '';
+    const day = s.lastSync && new Date(s.lastSync).toDateString() !== new Date().toDateString()
+      ? new Date(s.lastSync).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }) + ' ' : '';
+    let cls = 'ok', text;
+    if (!connected()) { cls = 'warn'; text = 'OneDrive nicht verbunden: Daten bleiben nur auf diesem Gerät. Hier tippen zum Verbinden.'; }
+    else if (status === 'login') { cls = 'warn'; text = 'OneDrive-Anmeldung abgelaufen. Hier tippen zum Neu-Anmelden.'; }
+    else if (status === 'error') { cls = 'warn'; text = `OneDrive-Abgleich fehlgeschlagen: ${esc(lastError)}`; }
+    else if (status === 'syncing') text = 'OneDrive: gleiche ab …';
+    else text = s.lastSync ? `OneDrive abgeglichen ${day}${time}` : 'OneDrive verbunden, noch nicht abgeglichen';
+    return `<button class="syncbadge ${cls}" data-view="settings">${text}</button>`;
+  }
 
   function statusHtml() {
     if (!configured()) return `<p class="hint" style="margin:0">Der OneDrive-Abgleich ist noch nicht eingerichtet. Bis dahin liegen die Daten nur auf diesem Gerät.</p>`;
@@ -224,7 +239,7 @@ const Sync = (() => {
     setInterval(() => schedule(0), 5 * 60 * 1000);
   }
 
-  return { init, schedule, statusHtml };
+  return { init, schedule, statusHtml, badgeHtml };
 })();
 
 Sync.init();
