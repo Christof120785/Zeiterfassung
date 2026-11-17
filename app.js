@@ -2,8 +2,9 @@
 
 // ---------- Version ----------
 // Bei jeder Änderung: APP_VERSION, version.json und CHANGES aktualisieren.
-const APP_VERSION = '1.7.0';
+const APP_VERSION = '1.8.0';
 const CHANGES = [
+  ['1.8.0', '17.11.2026', 'Zeit nachbuchen: +15 min, +30 min, −15 min per Knopfdruck auf der Startseite'],
   ['1.7.0', '11.11.2026', 'OneDrive-Status oben auf Heute und Woche sichtbar'],
   ['1.6.1', '26.10.2026', 'Schnellwahl um 8,5 h ergänzt'],
   ['1.6.0', '26.10.2026', 'Schnellwahl auf der Startseite: heute 6, 8, 9 oder 10 Stunden ohne Uhrzeit'],
@@ -165,7 +166,7 @@ function credited(key, day = state.days[key]) {
   if (day.type !== 'work') return day.hours != null ? Math.round(day.hours * 60) : targetMin(key);
   if (day.hours != null) return Math.round(day.hours * 60);
   const gross = (day.segs || []).reduce((s, g) => s + segMinutes(g, key), 0);
-  return Math.max(0, gross - (day.pause || 0));
+  return Math.max(0, gross - (day.pause || 0) + (day.extra || 0));
 }
 
 const hasOpen = day => !!day && day.type === 'work' && day.hours == null && (day.segs || []).some(s => s.s && !s.e);
@@ -229,6 +230,7 @@ function describe(key, day) {
   else {
     parts.push((day.segs || []).map(s => `${s.s || '?'}–${s.e || (key === todayKey() ? 'läuft' : '?')}`).join(', '));
     if (day.pause) parts.push(`P ${day.pause} min`);
+    if (day.extra) parts.push(`${day.extra > 0 ? '+' : '−'}${Math.abs(day.extra)} min nachgebucht`);
   }
   if (day.note) parts.push(esc(day.note));
   const warn = hasOpen(day) && key !== todayKey() ? '<span class="badge warn">Ende fehlt</span>' : '';
@@ -285,6 +287,22 @@ function setTodayHours(h) {
   render();
 }
 const fmtNum = n => String(n).replace('.', ',');
+
+// Zeit nachbuchen, ohne den Tag zu bearbeiten (+15 min usw.)
+function addTodayMinutes(min) {
+  const k = todayKey();
+  let d = state.days[k] ? structuredClone(state.days[k]) : { type: 'work', segs: [], pause: 0, hours: null, note: '' };
+  if (d.type !== 'work') {
+    if (!confirm(`Heute ist als ${TYPES[d.type]} eingetragen. Trotzdem Arbeitszeit nachbuchen?`)) return;
+    d = { type: 'work', segs: [], pause: 0, hours: null, note: d.note || '' };
+  }
+  if (credited(k, d) + min < 0) { toast('Weniger als 0 Stunden geht nicht'); return; }
+  if (d.hours != null) d.hours = Math.round((d.hours + min / 60) * 100) / 100;
+  else { d.extra = (d.extra || 0) + min; if (!d.extra) delete d.extra; }
+  setDay(k, d);
+  toast(`${min > 0 ? '+' : '−'}${Math.abs(min)} min gebucht · heute ${fmt(credited(k))}`);
+  render();
+}
 
 function setTodayPause(min) {
   const k = todayKey();
@@ -353,6 +371,10 @@ function renderToday() {
     ${importCard}
     <section class="card clock">${clock}</section>
     <section class="card">
+      <h2>Zeit nachbuchen</h2>
+      <div class="chips" style="margin-bottom:14px">
+        <button class="chip" data-addmin="15">+15 min</button><button class="chip" data-addmin="30">+30 min</button><button class="chip" data-addmin="-15">−15 min</button>
+      </div>
       <h2>Heute ohne Uhrzeit</h2>
       <div class="chips">${(state.settings.quickHours || []).map(h => `<button class="chip ${day && day.type === 'work' && day.hours === h ? 'on' : ''}" data-quickhours="${h}">${fmtNum(h)} h</button>`).join('')}</div>
     </section>
@@ -495,6 +517,7 @@ function draftDay() {
       d.hours = null;
       d.segs = draft.segs.filter(s => s.s).map(s => ({ s: s.s, e: s.e || null }));
       d.pause = draft.pause || 0;
+      if (draft.extra) d.extra = draft.extra;
     }
   } else {
     d.hours = draft.altHours ? draft.hours : null;
@@ -522,6 +545,7 @@ function renderEditor() {
           <button type="button" class="x" data-delseg="${i}" aria-label="Zeitraum entfernen">×</button>
         </div>`).join('') +
         `<button type="button" class="btn" data-addseg style="margin-bottom:14px">+ weiterer Zeitraum</button>
+        <label class="field"><span>Nachgebucht (Minuten, z. B. 15 oder −15)</span><input type="text" inputmode="numeric" id="edExtra" value="${draft.extra || 0}"></label>
         <label class="field"><span>Pause (Minuten)</span><input type="number" inputmode="numeric" min="0" step="5" id="edPause" value="${draft.pause || 0}"></label>
         <div class="chips" style="margin:-4px 0 12px">${PAUSES.map(p => `<button type="button" class="chip ${p === (draft.pause || 0) ? 'on' : ''}" data-edpause="${p}">${p ? p + ' min' : 'keine'}</button>`).join('')}</div>`;
     } else {
@@ -590,6 +614,7 @@ $('#editor').addEventListener('input', e => {
     t.value = digits.length >= 3 ? `${digits.slice(0, -2)}:${digits.slice(-2)}` : digits;
     draft.segs[+t.dataset.seg][t.dataset.f] = normTime(t.value);
   }
+  else if (t.id === 'edExtra') draft.extra = parseInt(t.value.replace('−', '-'), 10) || 0;
   else if (t.id === 'edPause') {
     draft.pause = Math.max(0, parseInt(t.value, 10) || 0);
     document.querySelectorAll('[data-edpause]').forEach(c => c.classList.toggle('on', +c.dataset.edpause === draft.pause));
@@ -639,7 +664,7 @@ $('#editor').addEventListener('submit', e => {
   if (d.type === 'work') {
     if (draft.mode === 'hours' && (d.hours == null || isNaN(d.hours) || d.hours < 0 || d.hours > 24)) { toast('Bitte gültige Stunden eingeben'); return; }
     if (draft.mode === 'times') {
-      if (!d.segs.length) { toast('Bitte mindestens eine Startzeit eingeben'); return; }
+      if (!d.segs.length && !d.extra) { toast('Bitte mindestens eine Startzeit eingeben'); return; }
       const openSegs = d.segs.filter(s => !s.e);
       if (openSegs.length > 1 || (openSegs.length && draft.key !== todayKey())) { toast('Bitte Endzeit eingeben'); return; }
       const gross = d.segs.reduce((s, g) => s + segMinutes(g, draft.key), 0);
@@ -676,6 +701,7 @@ document.addEventListener('click', e => {
   if (b.dataset.edit) { openEditor(b.dataset.edit); return; }
   if (b.dataset.pause != null) { setTodayPause(+b.dataset.pause); return; }
   if (b.dataset.quickhours != null) { setTodayHours(+b.dataset.quickhours); return; }
+  if (b.dataset.addmin != null) { addTodayMinutes(+b.dataset.addmin); return; }
   if (b.dataset.week != null) { weekAnchor = +b.dataset.week ? addDays(weekAnchor, 7 * b.dataset.week) : mondayOf(new Date()); render(); return; }
   if (b.dataset.month != null) {
     monthAnchor = +b.dataset.month ? new Date(monthAnchor.getFullYear(), monthAnchor.getMonth() + +b.dataset.month, 1) : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
